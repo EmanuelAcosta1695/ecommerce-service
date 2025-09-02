@@ -3,6 +3,7 @@ package storer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -16,44 +17,26 @@ func NewPySQLStorer(db *sqlx.DB) *PySQLStorer {
 }
 
 func (ps *PySQLStorer) CreateProduct(ctx context.Context, p *Product) (*Product, error) {
-	res, err := ps.db.NamedExecContext(
+	now := time.Now()
+	p.CreatedAt = now
+	p.UpdatedAt = &now
+
+	var id int64
+	err := ps.db.QueryRowxContext(
 		ctx,
 		`INSERT INTO products (
-        name, 
-        image, 
-        category, 
-        description, 
-        rating, 
-        num_reviews, 
-        price, 
-        count_in_stock, 
-        created_at, 
-        updated_at
-    ) VALUES (
-        :name, 
-        :image, 
-        :category, 
-        :description, 
-        :rating, 
-        :num_reviews, 
-        :price, 
-        :count_in_stock, 
-        :created_at, 
-        :updated_at
-    )`,
-		p,
-	)
+            name, image, category, description, rating, num_reviews, price, count_in_stock, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING id`,
+		p.Name, p.Image, p.Category, p.Description, p.Rating, p.NumReviews,
+		p.Price, p.CountInStock, p.CreatedAt, p.UpdatedAt,
+	).Scan(&id)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert product: %w", err)
 	}
 
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get last insert id: %w", err)
-	}
 	p.ID = id
-
 	return p, nil
 }
 
