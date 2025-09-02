@@ -66,8 +66,8 @@ func (ps *PySQLStorer) GetProduct(ctx context.Context, id int64) (*Product, erro
 	return &p, nil
 }
 
-func (ps *PySQLStorer) ListProduct(ctx context.Context, p *Product) ([]*Product, error) {
-	var products []*Product
+func (ps *PySQLStorer) ListProducts(ctx context.Context) ([]Product, error) {
+	var products []Product
 	err := ps.db.SelectContext(ctx, &products, "SELECT * FROM products")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list products: %w", err)
@@ -89,7 +89,7 @@ func (ps *PySQLStorer) UpdateProduct(ctx context.Context, p *Product) (*Product,
 		price = :price, 
 		count_in_stock = :count_in_stock, 
 		updated_at = :updated_at 
-	WHERE id = :id`,
+		WHERE id = :id`,
 		p,
 	)
 
