@@ -42,7 +42,7 @@ func (ps *PySQLStorer) CreateProduct(ctx context.Context, p *Product) (*Product,
 
 func (ps *PySQLStorer) GetProduct(ctx context.Context, id int64) (*Product, error) {
 	var p Product
-	err := ps.db.GetContext(ctx, &p, "SELECT * FROM products WHERE id=?", id)
+	err := ps.db.GetContext(ctx, &p, "SELECT * FROM products WHERE id=$1", id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get product with id %d: %w", id, err)
 	}
@@ -60,31 +60,40 @@ func (ps *PySQLStorer) ListProducts(ctx context.Context) ([]Product, error) {
 }
 
 func (ps *PySQLStorer) UpdateProduct(ctx context.Context, p *Product) (*Product, error) {
-	_, err := ps.db.NamedExecContext(
+	rows, err := ps.db.NamedQueryContext(
 		ctx,
 		`UPDATE products SET 
-		name = :name, 
-		image = :image, 
-		category = :category, 
-		description = :description, 
-		rating = :rating, 
-		num_reviews = :num_reviews, 
-		price = :price, 
-		count_in_stock = :count_in_stock, 
-		updated_at = :updated_at 
-		WHERE id = :id`,
+			name = :name, 
+			image = :image, 
+			category = :category, 
+			description = :description, 
+			rating = :rating, 
+			num_reviews = :num_reviews, 
+			price = :price, 
+			count_in_stock = :count_in_stock, 
+			updated_at = :updated_at 
+		WHERE id = :id
+		RETURNING *`,
 		p,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to update product with id %d: %w", p.ID, err)
 	}
+	defer rows.Close()
 
-	return p, nil
+	if rows.Next() {
+		var updated Product
+		if err := rows.StructScan(&updated); err != nil {
+			return nil, fmt.Errorf("failed to scan updated product: %w", err)
+		}
+		return &updated, nil
+	}
+
+	return nil, fmt.Errorf("no product found with id %d", p.ID)
 }
 
 func (ps *PySQLStorer) DeleteProduct(ctx context.Context, id int64) error {
-	_, err := ps.db.ExecContext(ctx, "DELETE FROM products WHERE id=?", id)
+	_, err := ps.db.ExecContext(ctx, "DELETE FROM products WHERE id=$1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete product with id %d: %w", id, err)
 	}
@@ -188,13 +197,13 @@ func createOrderItem(ctx context.Context, tx *sqlx.Tx, oi *OrderItem) (*OrderIte
 
 func (ps *PySQLStorer) GetOrder(ctx context.Context, id int64) (*Order, error) {
 	var o Order
-	err := ps.db.GetContext(ctx, &o, "SELECT * FROM orders WHERE id=?", id)
+	err := ps.db.GetContext(ctx, &o, "SELECT * FROM orders WHERE id=$1", id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order with id %d: %w", id, err)
 	}
 
 	var items []OrderItem
-	err = ps.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=?", id)
+	err = ps.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=$1", id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order items for order id %d: %w", id, err)
 	}
@@ -212,7 +221,7 @@ func (ps *PySQLStorer) ListOrder(ctx context.Context) ([]Order, error) {
 
 	for i := range orders {
 		var items []OrderItem
-		err = ps.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=?", orders[i].ID)
+		err = ps.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=$1", orders[i].ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get order items for order id: %w", err)
 		}
@@ -224,7 +233,7 @@ func (ps *PySQLStorer) ListOrder(ctx context.Context) ([]Order, error) {
 
 func (ps *PySQLStorer) DeleteOrder(ctx context.Context, id int64) error {
 	err := ps.execTx(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, "DELETE FROM order_items WHERE order_id=?", id)
+		_, err := tx.ExecContext(ctx, "DELETE FROM order_items WHERE order_id=$1", id)
 		if err != nil {
 			return fmt.Errorf("failed to delete order items for order id %d: %w", id, err)
 		}
