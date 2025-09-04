@@ -101,6 +101,10 @@ func (ps *PySQLStorer) DeleteProduct(ctx context.Context, id int64) error {
 }
 
 func (ps *PySQLStorer) CreateOrder(ctx context.Context, o *Order) (*Order, error) {
+	now := time.Now()
+	o.CreatedAt = now
+	o.UpdatedAt = &now
+
 	err := ps.execTx(ctx, func(tx *sqlx.Tx) error {
 		// insert into orders
 		createdOrder, err := createOrder(ctx, tx, o)
@@ -128,70 +132,32 @@ func (ps *PySQLStorer) CreateOrder(ctx context.Context, o *Order) (*Order, error
 }
 
 func createOrder(ctx context.Context, tx *sqlx.Tx, o *Order) (*Order, error) {
-	res, err := tx.NamedExecContext(
+	err := tx.QueryRowxContext(
 		ctx,
 		`INSERT INTO orders (
-		payment_method, 
-		tax_price, 
-		shipping_price, 
-		total_price, 
-		created_at, 
-		updated_at
-	) VALUES (
-		:payment_method, 
-		:tax_price, 
-		:shipping_price, 
-		:total_price, 
-		:created_at, 
-		:updated_at
-	)`,
-		o,
-	)
-
+			payment_method, tax_price, shipping_price, total_price, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`,
+		o.PaymentMethod, o.TaxPrice, o.ShippingPrice, o.TotalPrice, o.CreatedAt, o.UpdatedAt,
+	).Scan(&o.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert order: %w", err)
 	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get last insert id: %w", err)
-	}
-	o.ID = id
-
 	return o, nil
 }
 
 func createOrderItem(ctx context.Context, tx *sqlx.Tx, oi *OrderItem) (*OrderItem, error) {
-	res, err := tx.NamedExecContext(
+	err := tx.QueryRowxContext(
 		ctx,
 		`INSERT INTO order_items (
-		name, 
-		quantity, 
-		image, 
-		price, 
-		product_id, 
-		order_id
-	) VALUES (
-		:name, 
-		:quantity, 
-		:image, 
-		:price, 
-		:product_id, 
-		:order_id
-	)`,
-		oi,
-	)
-
+			name, quantity, image, price, product_id, order_id
+		) VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`,
+		oi.Name, oi.Quantity, oi.Image, oi.Price, oi.ProductID, oi.OrderID,
+	).Scan(&oi.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert order item: %w", err)
 	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get last insert id: %w", err)
-	}
-	oi.ID = id
-
 	return oi, nil
 }
 
@@ -212,7 +178,7 @@ func (ps *PySQLStorer) GetOrder(ctx context.Context, id int64) (*Order, error) {
 	return &o, nil
 }
 
-func (ps *PySQLStorer) ListOrder(ctx context.Context) ([]Order, error) {
+func (ps *PySQLStorer) ListOrders(ctx context.Context) ([]Order, error) {
 	var orders []Order
 	err := ps.db.SelectContext(ctx, &orders, "SELECT * FROM orders")
 	if err != nil {
@@ -238,7 +204,7 @@ func (ps *PySQLStorer) DeleteOrder(ctx context.Context, id int64) error {
 			return fmt.Errorf("failed to delete order items for order id %d: %w", id, err)
 		}
 
-		_, err = tx.ExecContext(ctx, "DELETE FROM orders WHERE id=?", id)
+		_, err = tx.ExecContext(ctx, "DELETE FROM orders WHERE id=$1", id)
 		if err != nil {
 			return fmt.Errorf("failed to delete order with id %d: %w", id, err)
 		}
