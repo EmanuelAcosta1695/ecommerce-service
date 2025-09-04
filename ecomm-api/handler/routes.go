@@ -22,6 +22,23 @@ func RegisterRoutes(handler *handler) *chi.Mux {
 		})
 	})
 
+	r.Route("/health", func(r chi.Router) {
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
+	})
+
+	r.Route(("/orders"), func(r chi.Router) {
+		r.Post("/", handler.createOrder)
+		r.Get("/", handler.listOrders)
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", handler.getOrder)
+
+			r.Delete("/", handler.deleteOrder)
+		})
+	})
+
 	return r
 }
 
