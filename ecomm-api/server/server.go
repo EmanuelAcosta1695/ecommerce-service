@@ -33,3 +33,19 @@ func (s *Server) UpdateProduct(ctx context.Context, p *storer.Product) (*storer.
 func (s *Server) DeleteProduct(ctx context.Context, id int64) error {
 	return s.storer.DeleteProduct(ctx, id)
 }
+
+func (s *Server) CreateOrder(ctx context.Context, o *storer.Order) (*storer.Order, error) {
+	return s.storer.CreateOrder(ctx, o)
+}
+
+func (s *Server) GetOrder(ctx context.Context, id int64) (*storer.Order, error) {
+	return s.storer.GetOrder(ctx, id)
+}
+
+func (s *Server) ListOrders(ctx context.Context) ([]storer.Order, error) {
+	return s.storer.ListOrders(ctx)
+}
+
+func (s *Server) DeleteOrder(ctx context.Context, id int64) error {
+	return s.storer.DeleteOrder(ctx, id)
+}
